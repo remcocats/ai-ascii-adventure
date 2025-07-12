@@ -7,16 +7,18 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.page.Push;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
-import org.springframework.security.core.parameters.P;
 
 @Route(value = "", layout = MainLayout.class)
 public class ChatView extends SplitLayout {
@@ -82,12 +84,17 @@ public class ChatView extends SplitLayout {
     private final TextArea txtStory = new TextArea();
     private final TextArea txtAsciiArt = new TextArea();
 
-    private final ChatModel chatModel;
+    private final ChatClient chatClient;
     private String heroName;
 
     @Autowired
     public ChatView(ChatModel chatModel) {
-        this.chatModel = chatModel;
+
+        ChatMemory chatMemory = MessageWindowChatMemory.builder().build();
+
+        this.chatClient = ChatClient.builder(chatModel)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build();
 
         this.setSizeFull();
         this.addToPrimary(createAsciiArt());
@@ -152,13 +159,15 @@ public class ChatView extends SplitLayout {
 
     private void callPrompt(Prompt prompt) {
         UI current = UI.getCurrent();
-        chatModel
-                .stream(prompt)
+        chatClient
+                .prompt(prompt)
+                .stream()
+                .chatClientResponse()
                 .subscribe(
                         response ->
                                 current.access(
                                         () ->
-                                                txtStory.setValue(txtStory.getValue() + response.getResult().getOutput().getText())
+                                                txtStory.setValue(txtStory.getValue() + response.chatResponse().getResult().getOutput().getText())
                                 )
                 );
     }
