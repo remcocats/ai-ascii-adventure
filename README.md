@@ -1,5 +1,10 @@
 # AI ASCII Adventure powered by Java and Ollama
 
+## YouTube
+
+For a very detailed explanation about this repository, check out
+the [live coding sessions on YouTube](https://youtube.com/live/2P7NASv-LdE).
+
 ## Ollama
 
 There's a [docker-compose file](./Docker/docker-compose.yml) that boots up an ollama docker and downloads the llama3.2
