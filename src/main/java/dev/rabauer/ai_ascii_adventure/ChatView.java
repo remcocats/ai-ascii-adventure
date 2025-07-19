@@ -12,6 +12,7 @@ import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
+import dev.rabauer.ai_ascii_adventure.dto.Hero;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -61,7 +62,10 @@ public class ChatView extends SplitLayout {
     private final TextArea txtAsciiArt = new TextArea();
 
     private final ChatClient chatClient;
-    private String heroName;
+    private Hero hero;
+    private ProgressBar prbHealth;
+    private ProgressBar prbMana;
+    private HeroUiCommunicator heroCommunicator;
 
     @Autowired
     public ChatView(ChatModel chatModel) {
@@ -94,11 +98,10 @@ public class ChatView extends SplitLayout {
         saveButton.addClickListener(buttonClickEvent ->
         {
             dialog.close();
-            this.heroName = txtHeroName.getValue();
+            this.hero = new Hero(txtHeroName.getValue());
+            this.heroCommunicator = new HeroUiCommunicator(this.hero, this.prbHealth, this.prbMana);
 
-            callPrompt(new Prompt(
-                    INITIAL_PROMPT.formatted(this.heroName)
-            ));
+            callPrompt(new Prompt(INITIAL_PROMPT.formatted(this.hero.getName())), this.heroCommunicator);
         });
         dialog.getFooter().add(saveButton);
         dialog.open();
@@ -108,9 +111,9 @@ public class ChatView extends SplitLayout {
         txtAsciiArt.setSizeFull();
         txtAsciiArt.setTitle("Graphics");
 
-        ProgressBar prbHealth = new ProgressBar(0, 1, 1);
+        prbHealth = new ProgressBar(0, 1, 1);
         prbHealth.setWidthFull();
-        ProgressBar prbMana = new ProgressBar(0, 1, 1);
+        prbMana = new ProgressBar(0, 1, 0.5);
         prbMana.setWidthFull();
 
         HorizontalLayout hlStatusBar = new HorizontalLayout(prbHealth, prbMana);
@@ -124,18 +127,19 @@ public class ChatView extends SplitLayout {
 
         TextField txtChat = new TextField();
         txtChat.setTitle("Prompt");
-        txtChat.addKeyDownListener(Key.ENTER, event -> callPrompt(new Prompt(txtChat.getValue())));
+        txtChat.addKeyDownListener(Key.ENTER, event -> callPrompt(new Prompt(txtChat.getValue()), heroCommunicator));
         Button btnSendPrompt = new Button("Send");
-        btnSendPrompt.addClickListener(k -> callPrompt(new Prompt(txtChat.getValue())));
+        btnSendPrompt.addClickListener(k -> callPrompt(new Prompt(txtChat.getValue()), heroCommunicator));
         HorizontalLayout hlUserInput = new HorizontalLayout(txtChat, btnSendPrompt);
 
         return new VerticalLayout(txtStory, hlUserInput);
     }
 
-    private void callPrompt(Prompt prompt) {
+    private void callPrompt(Prompt prompt, HeroUiCommunicator heroCommunicator) {
         UI current = UI.getCurrent();
         chatClient
                 .prompt(prompt)
+                .tools(heroCommunicator)
                 .stream()
                 .chatClientResponse()
                 .subscribe(
