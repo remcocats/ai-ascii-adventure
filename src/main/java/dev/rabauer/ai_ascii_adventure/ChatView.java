@@ -5,6 +5,7 @@ import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
@@ -22,7 +23,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @Route(value = "", layout = MainLayout.class)
-public class ChatView extends SplitLayout {
+public class ChatView extends SplitLayout implements GameManager {
 
     private static final String INITIAL_PROMPT =
             """
@@ -66,6 +67,7 @@ public class ChatView extends SplitLayout {
     private ProgressBar prbHealth;
     private ProgressBar prbMana;
     private HeroUiCommunicator heroCommunicator;
+    private Span spnInventory;
 
     @Autowired
     public ChatView(ChatModel chatModel) {
@@ -99,12 +101,32 @@ public class ChatView extends SplitLayout {
         {
             dialog.close();
             this.hero = new Hero(txtHeroName.getValue());
-            this.heroCommunicator = new HeroUiCommunicator(this.hero, this.prbHealth, this.prbMana);
+            this.heroCommunicator = new HeroUiCommunicator(
+                    this.hero, this.prbHealth, this.prbMana, this.spnInventory, this::showGameOver
+            );
 
             callPrompt(new Prompt(INITIAL_PROMPT.formatted(this.hero.getName())), this.heroCommunicator);
         });
         dialog.getFooter().add(saveButton);
         dialog.open();
+    }
+
+    public void showGameOver(boolean fail) {
+        UI.getCurrent().access(() ->
+        {
+            Dialog dialog = new Dialog();
+            dialog.setCloseOnOutsideClick(false);
+            dialog.setCloseOnEsc(false);
+
+            if (fail) {
+                dialog.setHeaderTitle("Game Over");
+                dialog.add(new Span("You died. Try again soon."));
+            } else {
+                dialog.setHeaderTitle("Victory!");
+                dialog.add(new Span("You finished the game! Congratulations!"));
+            }
+            dialog.open();
+        });
     }
 
     private Component createAsciiArt() {
@@ -118,7 +140,15 @@ public class ChatView extends SplitLayout {
 
         HorizontalLayout hlStatusBar = new HorizontalLayout(prbHealth, prbMana);
         hlStatusBar.setWidthFull();
-        return new VerticalLayout(txtAsciiArt, hlStatusBar);
+
+        spnInventory = new Span();
+        spnInventory.setWidthFull();
+        spnInventory.setHeight("100px");
+        HorizontalLayout hlInventory = new HorizontalLayout(spnInventory);
+        hlInventory.setHeight("100px");
+        hlInventory.setWidthFull();
+
+        return new VerticalLayout(txtAsciiArt, hlStatusBar, hlInventory);
     }
 
     private Component createStoryComponent() {
