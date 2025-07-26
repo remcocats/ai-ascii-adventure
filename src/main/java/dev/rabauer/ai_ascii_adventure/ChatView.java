@@ -14,13 +14,12 @@ import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
 import dev.rabauer.ai_ascii_adventure.dto.Hero;
+import dev.rabauer.ai_ascii_adventure.dto.Story;
+import dev.rabauer.ai_ascii_adventure.dto.StoryPart;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.ArrayList;
 
 @Route(value = "", layout = MainLayout.class)
 public class ChatView extends SplitLayout implements GameManager {
@@ -59,24 +58,42 @@ public class ChatView extends SplitLayout implements GameManager {
                                Begin the story with Hero standing at the edge of a dense, fog-covered forest. His quest is unknown — he must discover it as he explores. 
                     """;
 
+    private final static String CREATE_IMAGE_PROMPT_PROMPT = """
+            Given the following passage of text, extract its quintessence — the single most essential concept, 
+            emotion, or idea it conveys. Then, write a short, vivid prompt for generating a clear, 
+            minimal image that visually represents that essence. The image should be easy to understand, 
+            containing only the most necessary elements to express the idea, with no clutter or complex 
+            scenery. Avoid metaphor unless it is visually obvious. Focus on simplicity and clarity, 
+            suitable for both humans and AI to grasp at a glance.
+                        
+            Text:
+            %s
+            """;
+
+    private final static String CREATE_ASCII_ART_PROMPT_PROMPT = """
+                Read the following text, extract its core meaning, and create a simple, beautiful, and recognizable ASCII art representation of it. Use minimal characters and clean lines.
+                
+                Important: Return only the ASCII art — no explanation, no commentary, no labels. The output must consist of ASCII characters only.
+                
+                Text:
+                %s
+            """;
+
     private final TextArea txtStory = new TextArea();
     private final TextArea txtAsciiArt = new TextArea();
 
     private final ChatClient chatClient;
-    private Hero hero;
+    private final AiService aiService;
     private ProgressBar prbHealth;
     private ProgressBar prbMana;
     private HeroUiCommunicator heroCommunicator;
     private Span spnInventory;
+    private Story story;
 
     @Autowired
-    public ChatView(ChatModel chatModel) {
-
-        ChatMemory chatMemory = MessageWindowChatMemory.builder().build();
-
-        this.chatClient = ChatClient.builder(chatModel)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                .build();
+    public ChatView(AiService aiService) {
+        this.aiService = aiService;
+        this.chatClient = aiService.createChatClient(true);
 
         this.setSizeFull();
         this.addToPrimary(createAsciiArt());
@@ -100,12 +117,14 @@ public class ChatView extends SplitLayout implements GameManager {
         saveButton.addClickListener(buttonClickEvent ->
         {
             dialog.close();
-            this.hero = new Hero(txtHeroName.getValue());
+            Hero hero = new Hero(txtHeroName.getValue());
             this.heroCommunicator = new HeroUiCommunicator(
-                    this.hero, this.prbHealth, this.prbMana, this.spnInventory, this::showGameOver
+                    hero, this.prbHealth, this.prbMana, this.spnInventory, this
             );
 
-            callPrompt(new Prompt(INITIAL_PROMPT.formatted(this.hero.getName())), this.heroCommunicator);
+            this.story = new Story(new ArrayList<>(), hero);
+
+            generateNewStoryPart(INITIAL_PROMPT.formatted(hero.getName()));
         });
         dialog.getFooter().add(saveButton);
         dialog.open();
@@ -132,6 +151,7 @@ public class ChatView extends SplitLayout implements GameManager {
     private Component createAsciiArt() {
         txtAsciiArt.setSizeFull();
         txtAsciiArt.setTitle("Graphics");
+        txtAsciiArt.getStyle().set("font-family", "'Courier New', monospace");
 
         prbHealth = new ProgressBar(0, 1, 1);
         prbHealth.setWidthFull();
@@ -157,27 +177,41 @@ public class ChatView extends SplitLayout implements GameManager {
 
         TextField txtChat = new TextField();
         txtChat.setTitle("Prompt");
-        txtChat.addKeyDownListener(Key.ENTER, event -> callPrompt(new Prompt(txtChat.getValue()), heroCommunicator));
+        txtChat.addKeyDownListener(Key.ENTER, event -> generateNewStoryPart(txtChat.getValue()));
         Button btnSendPrompt = new Button("Send");
-        btnSendPrompt.addClickListener(k -> callPrompt(new Prompt(txtChat.getValue()), heroCommunicator));
+        btnSendPrompt.addClickListener(k -> generateNewStoryPart(txtChat.getValue()));
         HorizontalLayout hlUserInput = new HorizontalLayout(txtChat, btnSendPrompt);
 
         return new VerticalLayout(txtStory, hlUserInput);
     }
 
-    private void callPrompt(Prompt prompt, HeroUiCommunicator heroCommunicator) {
+    private void generateNewStoryPart(String textPrompt) {
+        this.txtStory.clear();
+
         UI current = UI.getCurrent();
-        chatClient
-                .prompt(prompt)
-                .tools(heroCommunicator)
-                .stream()
-                .chatClientResponse()
-                .subscribe(
-                        response ->
-                                current.access(
-                                        () ->
-                                                txtStory.setValue(txtStory.getValue() + response.chatResponse().getResult().getOutput().getText())
-                                )
-                );
+        aiService.generateNewStoryPart(
+                this.chatClient,
+                textPrompt,
+                heroCommunicator,
+                response ->
+                        current.access(
+                                () ->
+                                        txtStory.setValue(txtStory.getValue() + response.chatResponse().getResult().getOutput().getText())
+                        ),
+                () -> current.access(() -> handleFinishedStoryPart(txtStory.getValue()))
+        );
+
+    }
+
+    private void handleFinishedStoryPart(String storyPartAsString) {
+        StoryPart storyPart = new StoryPart(storyPartAsString);
+        this.story.storyParts().add(storyPart);
+
+        UI current = UI.getCurrent();
+        aiService.generateAsciiArt(
+                aiService.createChatClient(false),
+                CREATE_ASCII_ART_PROMPT_PROMPT.formatted(storyPartAsString),
+                response -> current.access(() -> txtAsciiArt.setValue(response))
+        );
     }
 }
