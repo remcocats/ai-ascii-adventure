@@ -9,11 +9,10 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class NpcUiCommunicator  {
 
-    private VerticalLayout verticalLayout;
+    private final VerticalLayout verticalLayout;
 
     public NpcUiCommunicator(VerticalLayout verticalLayout)  {
         this.verticalLayout = verticalLayout;
@@ -30,13 +29,41 @@ public class NpcUiCommunicator  {
     }
 
     @Tool(description = "Set the health points of the npc, ranging from 0 (dead) to max health as integer.")
-    public void setHealthNpc(@ToolParam(description = "the npc") Npc npc, Integer health) {
+    public void setHealthNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "target health value; clamp between 0 and npc.maxHealth") Integer health) {
         npc.setHealth(health);
+    }
+
+    @Tool(description = "Apply damage to an NPC and reduce its health by 'amount'. Clamp at 0. Use after resolving successful attacks.")
+    public Integer applyDamageNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "damage amount (>=1)") Integer amount) {
+        int newHealth = Math.max(0, npc.getHealth() - Math.max(0, amount));
+        npc.setHealth(newHealth);
+        return newHealth;
+    }
+
+    @Tool(description = "Heal an NPC and increase its health by 'amount' up to maxHealth. Use after successful healing effects.")
+    public Integer healNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "healing amount (>=1)") Integer amount) {
+        int newHealth = Math.min(npc.getMaxHealth(), npc.getHealth() + Math.max(0, amount));
+        npc.setHealth(newHealth);
+        return newHealth;
     }
 
     @Tool(description = "Get the maximum mana points of the npc as integer.")
     public Integer getMaxManaNpc(@ToolParam(description = "the npc") Npc npc) {
         return npc.getMaxMana();
+    }
+
+    @Tool(description = "Spend mana from an NPC. Decreases mana by 'amount' down to 0. Use when casting spells or abilities.")
+    public Integer spendManaNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "mana to spend (>=1)") Integer amount) {
+        int newMana = Math.max(0, npc.getMana() - Math.max(0, amount));
+        npc.setMana(newMana);
+        return newMana;
+    }
+
+    @Tool(description = "Restore mana to an NPC up to maxMana. Use when recovering resources.")
+    public Integer restoreManaNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "mana to restore (>=1)") Integer amount) {
+        int newMana = Math.min(npc.getMaxMana(), npc.getMana() + Math.max(0, amount));
+        npc.setMana(newMana);
+        return newMana;
     }
 
     @Tool(description = "Get the mana points of the npc, ranging from 0 to max mana as integer.")
@@ -45,7 +72,7 @@ public class NpcUiCommunicator  {
     }
 
     @Tool(description = "Set the mana points of the npc, ranging from 0 to max mana as integer.")
-    public void setManaNpc(@ToolParam(description = "the npc") Npc npc, Integer mana) {
+    public void setManaNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "target mana value; clamp between 0 and npc.maxMana") Integer mana) {
         npc.setMana(mana);
     }
 
@@ -54,13 +81,27 @@ public class NpcUiCommunicator  {
         return npc.getMaxSpellSlots();
     }
 
+    @Tool(description = "Spend spell slots from an NPC. Decreases spellSlots by 'amount' down to 0 after casting a spell.")
+    public Integer spendSpellSlotsNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "spell slots to spend (>=1)") Integer amount) {
+        int newSlots = Math.max(0, npc.getSpellSlots() - Math.max(0, amount));
+        npc.setSpellSlots(newSlots);
+        return newSlots;
+    }
+
+    @Tool(description = "Restore spell slots to an NPC up to maxSpellSlots (e.g., after rest).")
+    public Integer restoreSpellSlotsNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "spell slots to restore (>=1)") Integer amount) {
+        int newSlots = Math.min(npc.getMaxSpellSlots(), npc.getSpellSlots() + Math.max(0, amount));
+        npc.setSpellSlots(newSlots);
+        return newSlots;
+    }
+
     @Tool(description = "Get the spell slots of the npc, ranging from 0 to max spell slots as integer.")
     public Integer getSpellSlotsNpc(@ToolParam(description = "the npc") Npc npc) {
         return npc.getSpellSlots();
     }
 
     @Tool(description = "Set the spell slots of the npc, ranging from 0 to max spell slots as integer.")
-    public void setSpellSlotsNpc(@ToolParam(description = "the npc") Npc npc, Integer spellSlots) {
+    public void setSpellSlotsNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "target spell slots; clamp between 0 and npc.maxSpellSlots") Integer spellSlots) {
         npc.setSpellSlots(spellSlots);
     }
 
@@ -112,10 +153,9 @@ public class NpcUiCommunicator  {
                 element -> element.getChildren()
                         .filter(Span.class::isInstance)
                         .filter(span -> { try {
-                            span.getElement().getAttribute("weapons");
-                            return false;
+                            return Boolean.parseBoolean(span.getElement().getAttribute("weapons"));
                         } catch (Exception e) {
-                            return true;
+                            return false;
                         }
                         })
                         .findFirst()

@@ -1,8 +1,9 @@
 package dev.rabauer.ai_ascii_adventure.dto;
 
-import lombok.*;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
-
+@ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class Hero extends AbstractCharacter {
 

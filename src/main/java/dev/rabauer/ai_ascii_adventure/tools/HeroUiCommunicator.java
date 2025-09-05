@@ -39,7 +39,7 @@ public class HeroUiCommunicator {
     }
 
     @Tool(description = "Set the health points of the hero, ranging from 0 (dead) to max health as integer.")
-    public void setHealthHero(Integer health) {
+    public void setHealthHero(@org.springframework.ai.tool.annotation.ToolParam(description = "target health value; clamp between 0 and hero.maxHealth") Integer health) {
         this.hero.setHealth(health);
         this.prbHealth.getUI().ifPresent(
                 ui -> ui.access(() -> {
@@ -62,7 +62,7 @@ public class HeroUiCommunicator {
     }
 
     @Tool(description = "Set the mana points of the hero, ranging from 0 to max mana as integer.")
-    public void setManaHero(Integer mana) {
+    public void setManaHero(@org.springframework.ai.tool.annotation.ToolParam(description = "target mana value; clamp between 0 and hero.maxMana") Integer mana) {
         this.hero.setMana(mana);
         this.prbHealth.getUI().ifPresent(
                 ui -> ui.access(() -> {
@@ -84,7 +84,7 @@ public class HeroUiCommunicator {
     }
 
     @Tool(description = "Set the spell slots of the hero, ranging from 0 to max spell slots as integer.")
-    public void setSpellSlotsHero(Integer spellSlots) {
+    public void setSpellSlotsHero(@org.springframework.ai.tool.annotation.ToolParam(description = "target spell slots; clamp between 0 and hero.maxSpellSlots") Integer spellSlots) {
         this.hero.setSpellSlots(spellSlots);
         this.prbHealth.getUI().ifPresent(
                 ui -> ui.access(() -> {
@@ -155,7 +155,7 @@ public class HeroUiCommunicator {
         }));
     }
 
-    @Tool(description = "The hero succeeded in this game.")
+    @Tool(description = "End the game as a victory for the Hero. Use only when the main quest is resolved. Triggers a victory dialog in the UI.")
     private void winTheGameHero() {
         this.gameManager.showGameOver(false);
     }
@@ -164,5 +164,47 @@ public class HeroUiCommunicator {
         if (this.hero.getHealth() <= 0) {
             this.gameManager.showGameOver(true);
         }
+    }
+
+    @Tool(description = "Apply damage to the Hero. Decreases health by 'amount' down to 0. Use after resolving an enemy attack.")
+    public Integer applyDamageHero(@org.springframework.ai.tool.annotation.ToolParam(description = "damage amount (>=1)") Integer amount) {
+        int newHealth = Math.max(0, this.hero.getHealth() - Math.max(0, amount));
+        setHealthHero(newHealth);
+        return newHealth;
+    }
+
+    @Tool(description = "Heal the Hero by 'amount' up to maxHealth. Use after healing spells or potions.")
+    public Integer healHero(@org.springframework.ai.tool.annotation.ToolParam(description = "healing amount (>=1)") Integer amount) {
+        int newHealth = Math.min(this.hero.getMaxHealth(), this.hero.getHealth() + Math.max(0, amount));
+        setHealthHero(newHealth);
+        return newHealth;
+    }
+
+    @Tool(description = "Spend the Hero's mana by 'amount' down to 0. Use when casting spells.")
+    public Integer spendManaHero(@org.springframework.ai.tool.annotation.ToolParam(description = "mana to spend (>=1)") Integer amount) {
+        int newMana = Math.max(0, this.hero.getMana() - Math.max(0, amount));
+        setManaHero(newMana);
+        return newMana;
+    }
+
+    @Tool(description = "Restore the Hero's mana by 'amount' up to maxMana. Use when recovering resources.")
+    public Integer restoreManaHero(@org.springframework.ai.tool.annotation.ToolParam(description = "mana to restore (>=1)") Integer amount) {
+        int newMana = Math.min(this.hero.getMaxMana(), this.hero.getMana() + Math.max(0, amount));
+        setManaHero(newMana);
+        return newMana;
+    }
+
+    @Tool(description = "Spend the Hero's spell slots by 'amount' down to 0 after casting spells.")
+    public Integer spendSpellSlotsHero(@org.springframework.ai.tool.annotation.ToolParam(description = "spell slots to spend (>=1)") Integer amount) {
+        int newSlots = Math.max(0, this.hero.getSpellSlots() - Math.max(0, amount));
+        setSpellSlotsHero(newSlots);
+        return newSlots;
+    }
+
+    @Tool(description = "Restore the Hero's spell slots by 'amount' up to maxSpellSlots (e.g., after rest).")
+    public Integer restoreSpellSlotsHero(@org.springframework.ai.tool.annotation.ToolParam(description = "spell slots to restore (>=1)") Integer amount) {
+        int newSlots = Math.min(this.hero.getMaxSpellSlots(), this.hero.getSpellSlots() + Math.max(0, amount));
+        setSpellSlotsHero(newSlots);
+        return newSlots;
     }
 }

@@ -1,12 +1,9 @@
 package dev.rabauer.ai_ascii_adventure.dto;
 
-import lombok.*;
-import lombok.experimental.SuperBuilder;
-import org.checkerframework.checker.units.qual.A;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
-import java.util.ArrayList;
-import java.util.List;
-
+@ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class Npc extends AbstractCharacter {
 

@@ -21,7 +21,7 @@ public class StoryUiCommunicator {
         this.verticalLayout = verticalLayout;
     }
 
-    @Tool(description = "Add a NPC to the story.")
+    @Tool(description = "Add a friendly or neutral NPC to the story and render it in the UI. Use this when you introduce a new companion or notable character. The NPC's firstName must be unique.")
     public void addNpc(@ToolParam(description = "the npc") Npc npc) {
         story.npcs().put(npc.getFirstName(), npc);
 
@@ -29,10 +29,9 @@ public class StoryUiCommunicator {
                 .map(Span.class::cast)
                 .filter(component -> {
                             try {
-                                Objects.equals(npc.getFirstName(), component.getElement().getAttribute("firstName"));
-                                return false;
+                                return Objects.equals(npc.getFirstName(), component.getElement().getAttribute("firstName"));
                             } catch (Exception e) {
-                                return true;
+                                return false;
                             }
                         }
                 )
@@ -47,12 +46,12 @@ public class StoryUiCommunicator {
     }
 
     private Span createNpcComponent(Npc npc) {
-        var span = new Span(npc.getName());
+        var span = new Span(npc.toString());
         span.getElement().setAttribute("firstName", npc.getFirstName());
         return span;
     }
 
-    @Tool(description = "Remove a NPC from the story based on his first name.")
+    @Tool(description = "Remove an NPC from the story by first name. Use when an NPC leaves permanently or dies. Does not affect UI elements beyond removal from internal map.")
     public void removeNpc(String firstName) {
         story.npcs().remove(firstName);
     }
@@ -65,5 +64,37 @@ public class StoryUiCommunicator {
     @Tool(description = "Get the NPC by its first name.")
     public Npc getNpc(String firstName) {
         return story.npcs().get(firstName);
+    }
+
+    @Tool(description = "Transfer an item from the Hero to an NPC by firstName. Removes from Hero inventory if present and adds to NPC.")
+    public void transferItemHeroToNpc(@org.springframework.ai.tool.annotation.ToolParam(description = "item to transfer") String item,
+                                      @org.springframework.ai.tool.annotation.ToolParam(description = "target NPC first name") String npcFirstName) {
+        Npc npc = story.npcs().get(npcFirstName);
+        if (npc == null) return;
+        if (story.hero().getInventory().remove(item)) {
+            npc.addInventory(item);
+        }
+    }
+
+    @Tool(description = "Transfer an item from an NPC to the Hero by firstName. Removes from NPC if present and adds to Hero.")
+    public void transferItemNpcToHero(@org.springframework.ai.tool.annotation.ToolParam(description = "item to transfer") String item,
+                                      @org.springframework.ai.tool.annotation.ToolParam(description = "source NPC first name") String npcFirstName) {
+        Npc npc = story.npcs().get(npcFirstName);
+        if (npc == null) return;
+        if (npc.getInventory().remove(item)) {
+            story.hero().addInventory(item);
+        }
+    }
+
+    @Tool(description = "Transfer an item from one NPC to another by first names.")
+    public void transferItemNpcToNpc(@org.springframework.ai.tool.annotation.ToolParam(description = "item to transfer") String item,
+                                     @org.springframework.ai.tool.annotation.ToolParam(description = "source NPC first name") String fromFirstName,
+                                     @org.springframework.ai.tool.annotation.ToolParam(description = "target NPC first name") String toFirstName) {
+        Npc from = story.npcs().get(fromFirstName);
+        Npc to = story.npcs().get(toFirstName);
+        if (from == null || to == null) return;
+        if (from.getInventory().remove(item)) {
+            to.addInventory(item);
+        }
     }
 }
