@@ -5,10 +5,13 @@ import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.markdown.Markdown;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.progressbar.ProgressBarVariant;
@@ -16,93 +19,39 @@ import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.server.VaadinSession;
+import dev.rabauer.ai_ascii_adventure.config.AiProperties;
 import dev.rabauer.ai_ascii_adventure.dto.Hero;
 import dev.rabauer.ai_ascii_adventure.dto.Story;
 import dev.rabauer.ai_ascii_adventure.dto.StoryPart;
-import dev.rabauer.ai_ascii_adventure.models.AiModel;
 import dev.rabauer.ai_ascii_adventure.tools.DiceTool;
 import dev.rabauer.ai_ascii_adventure.tools.HeroUiCommunicator;
 import dev.rabauer.ai_ascii_adventure.tools.NpcUiCommunicator;
 import dev.rabauer.ai_ascii_adventure.tools.StoryUiCommunicator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.Disposable;
+import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 
 @Route(value = "", layout = MainLayout.class)
 public class ChatView extends SplitLayout implements GameManager {
 
-    private static final String INITIAL_PROMPT =
-            """
-                    You are the Dungeon Master (DM) for a turn-by-turn Dungeons & Dragons 5e-style text adventure.
-                    Your job is to narrate, adjudicate rules, and make decisions for NPCs and enemies. You must use the provided tools to update the Hero and NPC stats/state when actions occur.
-                    
-                    Campaign Setup:
-                    - The player character (PC, the Hero) is %s %s, a %s %s.
-                    - The party also includes up to 4 friendly NPCs who act autonomously on their initiative.
-                    - Additional neutral or hostile NPCs and monsters may appear.
-                    
-                    Core Loop (Every Turn):
-                    1) Re-state context succinctly (1–2 sentences): location, situation, immediate threats or goals.
-                    2) Indicate whose turn it is and follow the 5e action economy:
-                       - Movement (optional), Action (mandatory if doing something), Bonus Action (if applicable), Free Interactions (brief), Reactions (triggered outside the turn).
-                    3) Resolve declared actions fairly using rules logic and randomness. When a roll is needed, use the DiceTool via tools instead of inventing results.
-                    4) If consequences change stats or inventory, call the appropriate tools to update Hero/NPC state immediately.
-                    5) End with next player indicator: exactly this line format at the very end of the message: next player: 'FIRSTNAME'
-                    
-                    Tool Usage Rules:
-                    - Use NPC and Hero UI tools to create/insert NPCs, set or adjust life, mana, spell slots, weapons, and inventory.
-                    - Summarize any change you make in the narration and then apply the tool to persist it.
-                    - Only call tools for concrete state changes you just described (no speculative calls).
-                    
-                    Combat and Checks:
-                    - When outcomes are uncertain, use a roll: ability checks, saves, or attack/damage. Use DiceTool to roll; interpret results with DCs that fit the fiction.
-                    - Track resources: subtract spell slots, reduce mana if applicable, consume items from inventory, apply conditions (prone, unconscious, stabilized) where appropriate.
-                    - Death: If a character drops to 0 Life, they fall unconscious. If the Hero dies and cannot be stabilized, the game ends.
-                    
-                    Output Format (strict, every turn):
-                    - Scene: one short paragraph with sensory details and current stakes.
-                    - Status: brief line with current notable statuses for active creature (HP/Life, Mana, key resources if changed this turn).
-                    - Options: 2–4 concise options appropriate to the situation; also allow freeform input.
-                    - Turn Resolution: if this turn included NPC or enemy actions, resolve and narrate them fully, applying tool updates as needed.
-                    - next player: 'FIRSTNAME'  (this exact line as the final line)
-                    
-                    Style:
-                    - Concise, adventurous, and rules-aware. Keep each turn under ~180 words before the final next player line.
-                    - Avoid meta commentary or explaining rules unless part of narration.
-                    
-                    Start of Adventure:
-                    Begin with the Hero at the edge of a dense, fog-covered forest. The true quest is unknown and must be discovered through exploration.
-                    """;
-
-    private final static String CREATE_IMAGE_PROMPT_PROMPT = """
-            Given the following passage of text, extract its quintessence — the single most essential concept, 
-            emotion, or idea it conveys. Then, write a short, vivid prompt for generating a clear, 
-            minimal image that visually represents that essence. The image should be easy to understand, 
-            containing only the most necessary elements to express the idea, with no clutter or complex 
-            scenery. Avoid metaphor unless it is visually obvious. Focus on simplicity and clarity, 
-            suitable for both humans and AI to grasp at a glance.
-                        
-            Text:
-            %s
-            """;
-
-    private final static String CREATE_ASCII_ART_PROMPT_PROMPT = """
-                Read the following text, extract its core meaning, and create a simple, beautiful, and recognizable ASCII art representation of it. Use minimal characters and clean lines.
-                
-                Important: Return only the ASCII art — no explanation, no commentary, no labels. The output must consist of ASCII characters only.
-                
-                Text:
-                %s
-            """;
+    private static final Logger LOG = LoggerFactory.getLogger(ChatView.class);
 
     private final Markdown markdownStory = new Markdown();
     private final TextArea txtAsciiArt = new TextArea();
 
     private final ChatClient chatClient;
     private final AiService aiService;
+    private final ChatModel visionChatModel;
+    private final AiProperties aiProperties;
     private ProgressBar prbHealth;
     private ProgressBar prbMana;
     private ProgressBar prbSpellSlots;
@@ -120,9 +69,11 @@ public class ChatView extends SplitLayout implements GameManager {
     private Disposable inFlightAscii;
 
     @Autowired
-    public ChatView(AiService aiService) {
+    public ChatView(AiService aiService, ChatClient chatClient, ChatModel visionChatModel, AiProperties aiProperties) {
         this.aiService = aiService;
-        this.chatClient = aiService.createChatClient(true, AiModel.OLLAMA_GPT_OSS.model);
+        this.chatClient = chatClient;
+        this.visionChatModel = visionChatModel;
+        this.aiProperties = aiProperties;
 
         this.setSizeFull();
         this.addToPrimary(createPrimaryPartHeroAndNpc());
@@ -172,7 +123,14 @@ public class ChatView extends SplitLayout implements GameManager {
 
             this.diceTool = new DiceTool();
 
-            generateNewStoryPart(hero.getRole(), INITIAL_PROMPT.formatted(hero.getFirstName(), hero.getLastName(), hero.getRace(), hero.getKlass()));
+            // Initialize UI with hero's current attributes
+            this.heroCommunicator.setHealthHero(hero.getHealth());
+            this.heroCommunicator.setManaHero(hero.getMana());
+            this.heroCommunicator.setSpellSlotsHero(hero.getSpellSlots());
+            this.heroCommunicator.updateInventory();
+            this.heroCommunicator.updateWeapons();
+
+            generateNewStoryPart(hero.getRole(), PromptConstants.INITIAL_PROMPT.formatted(hero.getFirstName(), hero.getLastName(), hero.getRace(), hero.getKlass()));
         });
         dialog.getFooter().add(saveButton);
         dialog.open();
@@ -214,10 +172,13 @@ public class ChatView extends SplitLayout implements GameManager {
     }
 
     private Component createPrimaryPartAsciArtAndHero() {
+        // ASCII Map area (read-only, monospace)
         txtAsciiArt.setSizeFull();
-        txtAsciiArt.setTitle("Graphics");
+        txtAsciiArt.setReadOnly(true);
+        txtAsciiArt.setLabel("ASCII Map");
         txtAsciiArt.getStyle().set("font-family", "'Courier New', monospace");
 
+        // Status bars with accessible labels
         prbHealth = new ProgressBar(0, 1, 1);
         prbHealth.addThemeVariants(ProgressBarVariant.LUMO_CONTRAST);
         prbHealth.setWidthFull();
@@ -247,22 +208,45 @@ public class ChatView extends SplitLayout implements GameManager {
 
         HorizontalLayout hlStatusBar = new HorizontalLayout(vlHealth, vlMana, vlSpellSlots);
         hlStatusBar.setWidthFull();
+        hlStatusBar.setSpacing(true);
+        hlStatusBar.setPadding(false);
+        hlStatusBar.setDefaultVerticalComponentAlignment(FlexComponent.Alignment.END);
+        hlStatusBar.setFlexGrow(1, vlHealth, vlMana, vlSpellSlots);
 
+        // Inventory and Weapons areas wrapped in Scrollers to avoid fixed heights
         spnInventory = new Span();
         spnInventory.setWidthFull();
-        spnInventory.setHeight("100px");
-        HorizontalLayout hlInventory = new HorizontalLayout(spnInventory);
-        hlInventory.setHeight("100px");
-        hlInventory.setWidthFull();
+        Scroller inventoryScroller = new Scroller(spnInventory);
+        inventoryScroller.setSizeFull();
+        inventoryScroller.getElement().setAttribute("aria-label", "Inventory list");
+        VerticalLayout inventorySection = new VerticalLayout(new H3("Inventory"), inventoryScroller);
+        inventorySection.setPadding(false);
+        inventorySection.setSpacing(false);
+        inventorySection.setSizeFull();
 
         spnWeapons = new Span();
         spnWeapons.setWidthFull();
-        spnWeapons.setHeight("100px");
-        HorizontalLayout hlWeapons = new HorizontalLayout(spnWeapons);
-        hlWeapons.setHeight("100px");
-        hlWeapons.setWidthFull();
+        Scroller weaponsScroller = new Scroller(spnWeapons);
+        weaponsScroller.setSizeFull();
+        weaponsScroller.getElement().setAttribute("aria-label", "Weapons list");
+        VerticalLayout weaponsSection = new VerticalLayout(new H3("Weapons"), weaponsScroller);
+        weaponsSection.setPadding(false);
+        weaponsSection.setSpacing(false);
+        weaponsSection.setSizeFull();
 
-        return new VerticalLayout(txtAsciiArt, hlStatusBar, hlInventory, hlWeapons);
+        VerticalLayout statsSection = new VerticalLayout(new H3("Status"), hlStatusBar);
+        statsSection.setPadding(false);
+        statsSection.setSpacing(false);
+        statsSection.setWidthFull();
+
+        VerticalLayout right = new VerticalLayout(txtAsciiArt, statsSection, inventorySection, weaponsSection);
+        right.setSizeFull();
+        right.setSpacing(true);
+        right.setPadding(true);
+        right.setFlexGrow(1, txtAsciiArt);
+        right.setFlexGrow(0, statsSection);
+        right.setFlexGrow(1, inventorySection, weaponsSection);
+        return right;
     }
 
     private Component createSecondaryPartTheStory() {
@@ -289,16 +273,32 @@ public class ChatView extends SplitLayout implements GameManager {
     }
 
     private void cancelInFlight() {
-        if (inFlightStory != null && !inFlightStory.isDisposed()) {
-            inFlightStory.dispose();
+        try {
+            if (inFlightStory != null && !inFlightStory.isDisposed()) {
+                inFlightStory.dispose();
+            }
+        } catch (Exception e) {
+            LOG.warn("Failed disposing inFlightStory", e);
+        } finally {
+            inFlightStory = null;
         }
-        if (inFlightAscii != null && !inFlightAscii.isDisposed()) {
-            inFlightAscii.dispose();
+        try {
+            if (inFlightAscii != null && !inFlightAscii.isDisposed()) {
+                inFlightAscii.dispose();
+            }
+        } catch (Exception e) {
+            LOG.warn("Failed disposing inFlightAscii", e);
+        } finally {
+            inFlightAscii = null;
         }
     }
 
     private void generateNewStoryPart(String character, String textPrompt) {
-        this.markdownStory.setContent("");
+        var currentSession = VaadinSession.getCurrent();
+
+        if (currentSession != null) {
+            currentSession.access(() -> this.markdownStory.setContent(""));
+        }
 
         UI current = UI.getCurrent();
         cancelInFlight();
@@ -345,20 +345,84 @@ public class ChatView extends SplitLayout implements GameManager {
         StoryPart storyPart = new StoryPart(character, storyPartAsString);
         this.story.storyParts().add(storyPart);
 
-        UI current = UI.getCurrent();
-        inFlightAscii = aiService.generateAsciiArt(
-                aiService.createChatClient(false, AiModel.OLLAMA_LLAVA.model),
-                CREATE_ASCII_ART_PROMPT_PROMPT.formatted(storyPartAsString),
-                response -> current.access(() -> txtAsciiArt.setValue(response))
-        );
+        String firstName = extractFirstNameFrom(storyPartAsString);
+
+        if (!firstName.equalsIgnoreCase(heroCommunicator.getHero().getFirstName())) {
+            String options = extractOptionsFrom(storyPartAsString);
+
+            Mono.delay(Duration.ofSeconds(aiProperties.npcDecisionDelaySeconds())).subscribe(ignored -> {
+                try {
+                    generateNewStoryPart(firstName, """
+                            Decide for the NPC what to do next. Based on the following options %s, choose one.
+                            """.formatted(options));
+                } catch (Exception ex) {
+                    LOG.error("Failed to trigger NPC decision for {}", firstName, ex);
+                }
+            });
+        }
+        createAsciiArt(storyPartAsString);
 
 //        aiService.generatePicture(
 //                aiService.createChatClient(false, AiModel.OLLAMA_LLAVA.model),
 //                CREATE_IMAGE_PROMPT_PROMPT.formatted(storyPartAsString),
 //                response -> {
-//
 //                }
 //        );
+    }
+
+    private String extractOptionsFrom(String storyPartAsString) {
+        if (storyPartAsString == null) return "";
+        String lower = storyPartAsString;
+        int idxOptions = lower.indexOf("Options");
+        if (idxOptions < 0) return "";
+        int idxNext = lower.indexOf("next player", idxOptions);
+        String section = idxNext > idxOptions ? lower.substring(idxOptions, idxNext) : lower.substring(idxOptions);
+        // Remove leading label and punctuation
+        section = section.replaceFirst("(?is)^Options *:?", "");
+        return section.trim();
+    }
+
+    private String extractFirstNameFrom(String storyPartAsString) {
+        if (storyPartAsString == null) return "";
+        String s = storyPartAsString;
+        int idx = s.indexOf("next player");
+        if (idx >= 0) {
+            String tail = s.substring(idx);
+            int colon = tail.indexOf(":");
+            if (colon >= 0) {
+                String after = tail.substring(colon + 1).trim();
+                // strip quotes and trailing content
+                after = after.replace("\n", " ").trim();
+                if (after.startsWith("'")) {
+                    int end = after.indexOf("'", 1);
+                    if (end > 1) {
+                        return after.substring(1, end).trim();
+                    }
+                }
+                if (after.startsWith("\"")) {
+                    int end = after.indexOf("\"", 1);
+                    if (end > 1) {
+                        return after.substring(1, end).trim();
+                    }
+                }
+                // fallback: take first token
+                String[] parts = after.split("\\s+");
+                if (parts.length > 0) return parts[0].replace("'", "").replace("\"", "").trim();
+            }
+        }
+        // legacy fallback
+        String[] split = storyPartAsString.split("next player");
+        String firstName = split[split.length - 1];
+        return firstName.replace(":", "").replace("\n", "").replace("'", "").replace("\"", "").trim();
+    }
+
+    private void createAsciiArt(String storyPartAsString) {
+        UI current = UI.getCurrent();
+        inFlightAscii = aiService.generateAsciiArt(
+                aiService.createChatClient(false, visionChatModel),
+                PromptConstants.CREATE_ASCII_ART_PROMPT_PROMPT.formatted(storyPartAsString),
+                response -> current.access(() -> txtAsciiArt.setValue(response))
+        );
     }
 
 }

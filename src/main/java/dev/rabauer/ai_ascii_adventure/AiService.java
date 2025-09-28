@@ -1,7 +1,6 @@
 package dev.rabauer.ai_ascii_adventure;
 
 import dev.rabauer.ai_ascii_adventure.ai.RouteClassification;
-import dev.rabauer.ai_ascii_adventure.models.AiModel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -38,7 +37,10 @@ public class AiService {
                     """
     );
 
-    public AiService() {
+    private final ChatModel classificationChatModel;
+
+    public AiService(ChatModel classificationChatModel) {
+        this.classificationChatModel = classificationChatModel;
     }
 
     public ChatClient createChatClient(boolean withMemory, ChatModel chatModel) {
@@ -59,7 +61,7 @@ public class AiService {
 
         reactor.core.Disposable d = chatClient
                 .prompt(new Prompt(textPrompt))
-                .user(specializedPrompt + "\n\nCharacter that is chosen: " + character + "\n\n")
+//                .user(specializedPrompt + "\n\nCharacter that is chosen: " + character + "\n\n")
                 .tools(tools)
                 .stream()
                 .chatClientResponse()
@@ -77,7 +79,7 @@ public class AiService {
     private String classifyInquiry(String inquiry, Iterable<String> availableRoutes) {
         String classificationPrompt = constructPrompt(inquiry, availableRoutes);
 
-        RouteClassification classification = this.createChatClient(false, AiModel.OLLAMA_LLAMA_32.model)
+        RouteClassification classification = this.createChatClient(false, classificationChatModel)
                 .prompt()
                 .user(classificationPrompt)
                 .call()

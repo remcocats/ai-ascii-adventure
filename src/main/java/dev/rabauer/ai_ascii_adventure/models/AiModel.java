@@ -11,7 +11,7 @@ public enum AiModel {
                     .ollamaApi(OllamaApi.builder().baseUrl("http://localhost:11434").build())
                     .defaultOptions(OllamaOptions.builder()
                             .model("gpt-oss:20b")
-                            .temperature(0.1)
+                            .temperature(0.3)
                             .build())
                     .build()
     ),

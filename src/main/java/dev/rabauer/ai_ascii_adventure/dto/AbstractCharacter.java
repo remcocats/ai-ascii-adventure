@@ -1,6 +1,6 @@
 package dev.rabauer.ai_ascii_adventure.dto;
 
-import lombok.*;
+import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.List;

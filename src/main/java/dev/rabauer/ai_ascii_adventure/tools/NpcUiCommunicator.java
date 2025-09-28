@@ -111,7 +111,7 @@ public class NpcUiCommunicator  {
     }
 
     @Tool(description = "Add one inventory item to the npc's inventory as string.")
-    public void addInventoryNpc(@ToolParam(description = "the npc") Npc npc, String newInventoryItem) {
+    public void addInventoryNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "item to add") String newInventoryItem) {
         npc.addInventory(newInventoryItem);
     }
 
@@ -121,7 +121,7 @@ public class NpcUiCommunicator  {
     }
 
     @Tool(description = "Removes one inventory item from the npc's inventory as string.")
-    public void removeInventoryNpc(@ToolParam(description = "the npc") Npc npc, String inventoryItemToRemove) {
+    public void removeInventoryNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "item to remove") String inventoryItemToRemove) {
         npc.removeInventory(inventoryItemToRemove);
     }
 
@@ -131,7 +131,7 @@ public class NpcUiCommunicator  {
     }
 
     @Tool(description = "Add one weapon item to the npc's weapons as string.")
-    public void addWeaponNpc(@ToolParam(description = "the npc") Npc npc, String newWeapon) {
+    public void addWeaponNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "weapon to add") String newWeapon) {
         npc.addWeapon(newWeapon);
         updateWeapons(npc);
     }
@@ -143,7 +143,7 @@ public class NpcUiCommunicator  {
     }
 
     @Tool(description = "Removes one weapon item from the npc's weapons as string.")
-    public void removeWeaponNpc(@ToolParam(description = "the npc") Npc npc, String weaponToRemove) {
+    public void removeWeaponNpc(@ToolParam(description = "the npc") Npc npc, @ToolParam(description = "weapon to remove") String weaponToRemove) {
         npc.removeWeapon(weaponToRemove);
         updateWeapons(npc);
     }

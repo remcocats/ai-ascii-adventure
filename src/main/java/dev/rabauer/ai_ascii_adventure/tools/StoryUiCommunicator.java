@@ -1,7 +1,11 @@
 package dev.rabauer.ai_ascii_adventure.tools;
 
-import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.details.Details;
+import com.vaadin.flow.component.html.*;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.progressbar.ProgressBar;
 import dev.rabauer.ai_ascii_adventure.dto.Npc;
 import dev.rabauer.ai_ascii_adventure.dto.Story;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +30,6 @@ public class StoryUiCommunicator {
         story.npcs().put(npc.getFirstName(), npc);
 
         verticalLayout.getChildren()
-                .map(Span.class::cast)
                 .filter(component -> {
                             try {
                                 return Objects.equals(npc.getFirstName(), component.getElement().getAttribute("firstName"));
@@ -37,7 +40,7 @@ public class StoryUiCommunicator {
                 )
                 .findFirst()
                 .ifPresentOrElse(
-                        component -> log.info("Npc {} already exists in story see element text {}.", npc.getFirstName(), component.getElement().getText())
+                        component -> log.info("Npc {} already exists in story.", npc.getFirstName())
                         , () ->
                                 verticalLayout.add(createNpcComponent(npc))
                 );
@@ -45,14 +48,61 @@ public class StoryUiCommunicator {
         log.info("Added npc {} to story.", npc.getFirstName());
     }
 
-    private Span createNpcComponent(Npc npc) {
-        var span = new Span(npc.toString());
-        span.getElement().setAttribute("firstName", npc.getFirstName());
-        return span;
+    private Component createNpcComponent(Npc npc) {
+        // Header: Name and role/class
+        H4 header = new H4(npc.getName());
+        Span meta = new Span("(" + npc.getRace() + " " + npc.getKlass() + ")");
+        meta.getElement().setAttribute("theme", "badge small contrast");
+
+        HorizontalLayout summary = new HorizontalLayout(header, meta);
+        summary.setAlignItems(HorizontalLayout.Alignment.BASELINE);
+        summary.setSpacing(true);
+
+        // Body: stats and lists
+        VerticalLayout body = new VerticalLayout();
+        body.setPadding(false);
+        body.setSpacing(false);
+        body.setWidthFull();
+
+        // Stats
+        Div statsContainer = new Div();
+        statsContainer.getStyle().set("display", "grid");
+        statsContainer.getStyle().set("grid-template-columns", "1fr 1fr");
+        statsContainer.getStyle().set("gap", "var(--lumo-space-m)");
+
+        ProgressBar healthBar = new ProgressBar(0, npc.getMaxHealth(), npc.getHealth());
+        Span healthLabel = new Span("Health: " + npc.getHealth() + "/" + npc.getMaxHealth());
+        healthLabel.getStyle().set("font-size", "var(--lumo-font-size-s)");
+
+        ProgressBar manaBar = new ProgressBar(0, npc.getMaxMana(), npc.getMana());
+        Span manaLabel = new Span("Mana: " + npc.getMana() + "/" + npc.getMaxMana());
+        manaLabel.getStyle().set("font-size", "var(--lumo-font-size-s)");
+
+        statsContainer.add(new Div(healthLabel, healthBar), new Div(manaLabel, manaBar));
+
+        // Inventory
+        UnorderedList inventoryList = new UnorderedList();
+        inventoryList.getElement().setProperty("title", "Inventory");
+        if (npc.getInventory().isEmpty()) {
+            inventoryList.add(new ListItem(new Span("(empty)")));
+        } else {
+            npc.getInventory().forEach(item -> inventoryList.add(new ListItem(new Span(item))));
+        }
+
+        // Spell slots
+        Span slots = new Span("Spell slots: " + npc.getSpellSlots() + "/" + npc.getMaxSpellSlots());
+
+        body.add(new Span("Role: " + npc.getRole()), statsContainer, slots, new H4("Inventory"), inventoryList);
+
+        Details details = new Details(summary, body);
+        details.getElement().setAttribute("firstName", npc.getFirstName());
+        details.setOpened(false);
+        details.getElement().setAttribute("data-testid", "npc-details");
+        return details;
     }
 
     @Tool(description = "Remove an NPC from the story by first name. Use when an NPC leaves permanently or dies. Does not affect UI elements beyond removal from internal map.")
-    public void removeNpc(String firstName) {
+    public void removeNpc(@ToolParam(description = "NPC first name") String firstName) {
         story.npcs().remove(firstName);
     }
 
@@ -62,7 +112,7 @@ public class StoryUiCommunicator {
     }
 
     @Tool(description = "Get the NPC by its first name.")
-    public Npc getNpc(String firstName) {
+    public Npc getNpc(@ToolParam(description = "NPC first name") String firstName) {
         return story.npcs().get(firstName);
     }
 

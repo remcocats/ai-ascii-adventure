@@ -4,12 +4,14 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import dev.rabauer.ai_ascii_adventure.GameManager;
 import dev.rabauer.ai_ascii_adventure.dto.Hero;
+import lombok.Getter;
 import org.springframework.ai.tool.annotation.Tool;
 
 import java.util.List;
 
 public class HeroUiCommunicator {
 
+    @Getter
     private final Hero hero;
     private final ProgressBar prbHealth;
     private final ProgressBar prbMana;
@@ -100,8 +102,13 @@ public class HeroUiCommunicator {
         return this.hero.getInventory();
     }
 
+    @Tool(description = "Add multiple items to the hero's inventory. Does not clear existing items.")
+    public void setInventoryHero(@org.springframework.ai.tool.annotation.ToolParam(description = "list of items to add") List<String> inventoryItems) {
+        inventoryItems.forEach(this.hero::addInventory);
+    }
+
     @Tool(description = "Add one inventory item to the hero's inventory as string.")
-    public void addInventoryHero(String newInventoryItem) {
+    public void addInventoryHero(@org.springframework.ai.tool.annotation.ToolParam(description = "item to add") String newInventoryItem) {
         this.hero.addInventory(newInventoryItem);
         updateInventory();
     }
@@ -113,7 +120,7 @@ public class HeroUiCommunicator {
     }
 
     @Tool(description = "Removes one inventory item from the hero's inventory as string.")
-    public void removeInventoryHero(String inventoryItemToRemove) {
+    public void removeInventoryHero(@org.springframework.ai.tool.annotation.ToolParam(description = "item to remove") String inventoryItemToRemove) {
         this.hero.removeInventory(inventoryItemToRemove);
         updateInventory();
     }
@@ -131,7 +138,7 @@ public class HeroUiCommunicator {
     }
 
     @Tool(description = "Add one weapon item to the hero's weapons as string.")
-    public void addWeaponHero(String newWeapon) {
+    public void addWeaponHero(@org.springframework.ai.tool.annotation.ToolParam(description = "weapon to add") String newWeapon) {
         this.hero.addWeapon(newWeapon);
         updateWeapons();
     }
@@ -143,7 +150,7 @@ public class HeroUiCommunicator {
     }
 
     @Tool(description = "Removes one weapon item from the hero's weapons as string.")
-    public void removeWeaponHero(String weaponToRemove) {
+    public void removeWeaponHero(@org.springframework.ai.tool.annotation.ToolParam(description = "weapon to remove") String weaponToRemove) {
         this.hero.removeWeapon(weaponToRemove);
         updateWeapons();
     }

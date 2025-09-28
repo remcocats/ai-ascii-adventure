@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.5</version>
+      <version>3.5.6</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>dev.rabauer</groupId>
@@ -29,9 +29,15 @@
     <properties>
         <java.version>21</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
-        <spring-ai.version>1.1.0-SNAPSHOT</spring-ai.version>
-        <vaadin.version>24.8.2</vaadin.version>
+      <spring-ai.version>1.1.0-M2</spring-ai.version>
+      <vaadin.version>24.9.0</vaadin.version>
       <langgraph4j.version>1.6.0</langgraph4j.version>
+      <org-mapstruct.version>1.6.3</org-mapstruct.version>
+      <spring.version>3.5.6</spring.version>
+      <org-lombok.version>1.18.42</org-lombok.version>
+      <org-lombok-mapstruct-binding.version>0.2.0</org-lombok-mapstruct-binding.version>
+      <!-- plugins version -->
+      <maven-compiler.version>3.14.1</maven-compiler.version>
     </properties>
 
     <repositories>
@@ -81,7 +87,7 @@
       <dependency>
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
-        <version>1.18.34</version>
+        <version>1.18.42</version>
       </dependency>
 
 
@@ -127,6 +133,44 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>${maven-compiler.version}</version>
+            <configuration>
+              <source>${java.version}</source>
+              <target>${java.version}</target>
+              <parameters>true</parameters>
+              <annotationProcessorPaths>
+                <path>
+                  <groupId>org.mapstruct</groupId>
+                  <artifactId>mapstruct-processor</artifactId>
+                  <version>${org-mapstruct.version}</version>
+                </path>
+                <path>
+                  <groupId>org.projectlombok</groupId>
+                  <artifactId>lombok</artifactId>
+                  <version>${org-lombok.version}</version>
+                </path>
+                <path>
+                  <groupId>org.projectlombok</groupId>
+                  <artifactId>lombok-mapstruct-binding</artifactId>
+                  <version>${org-lombok-mapstruct-binding.version}</version>
+                </path>
+                <path>
+                  <groupId>org.springframework.boot</groupId>
+                  <artifactId>spring-boot-configuration-processor</artifactId>
+                  <version>${spring.version}</version>
+                </path>
+              </annotationProcessorPaths>
+              <compilerArgs>
+                <compilerArg>-Amapstruct.defaultComponentModel=spring</compilerArg>
+                <compilerArg>-parameters</compilerArg>
+              </compilerArgs>
+              <showWarnings>true</showWarnings>
+              <showDeprecation>true</showDeprecation>
+            </configuration>
+          </plugin>
         </plugins>
     </build>
 
