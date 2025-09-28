@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Data
 public abstract class AbstractCharacter {
@@ -23,11 +24,11 @@ public abstract class AbstractCharacter {
 
 
     public AbstractCharacter(String firstName, String lastName, String race, String klass, String role) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.race = race;
-        this.klass = klass;
-        this.role = role;
+        this.firstName = requireText(firstName, "firstName");
+        this.lastName = requireText(lastName, "lastName");
+        this.race = requireText(race, "race");
+        this.klass = requireText(klass, "klass");
+        this.role = requireText(role, "role");
         this.maxHealth = 100;
         this.health = maxHealth;
         this.maxMana = 50;
@@ -36,12 +37,20 @@ public abstract class AbstractCharacter {
         this.spellSlots = maxSpellSlots;
     }
 
+    private static String requireText(String v, String name) {
+        String s = Objects.requireNonNull(v, name).trim();
+        if (s.isEmpty()) throw new IllegalArgumentException(name + " must not be blank");
+        return s;
+    }
+
     public String getName() {
         return this.firstName + " " + this.lastName;
     }
 
     public void addInventory(String newInventoryItem) {
-        this.inventory.add(newInventoryItem);
+        if (!newInventoryItem.isBlank()) {
+            this.inventory.add(newInventoryItem.trim());
+        }
     }
 
     public void clearInventory() {
@@ -57,11 +66,50 @@ public abstract class AbstractCharacter {
     }
 
     public void addWeapon(String newWeapon) {
-        this.weapons.add(newWeapon);
+        if (!newWeapon.isBlank()) {
+            this.weapons.add(newWeapon.trim());
+        }
     }
 
     public void removeWeapon(String weaponToRemove) {
         this.weapons.remove(weaponToRemove);
     }
 
+    // Invariants: clamp mutable stats within [0, max]
+    public void setHealth(Integer health) {
+        int h = health;
+        int max = this.maxHealth == null ? 0 : this.maxHealth;
+        this.health = Math.max(0, Math.min(h, Math.max(0, max)));
+    }
+
+    public void setMaxHealth(Integer maxHealth) {
+        int max = Math.max(0, maxHealth);
+        this.maxHealth = max;
+        // adjust current health if above new max
+        if (this.health != null && this.health > max) this.health = max;
+    }
+
+    public void setMana(Integer mana) {
+        int m = mana;
+        int max = this.maxMana == null ? 0 : this.maxMana;
+        this.mana = Math.max(0, Math.min(m, Math.max(0, max)));
+    }
+
+    public void setMaxMana(Integer maxMana) {
+        int max = Math.max(0, maxMana);
+        this.maxMana = max;
+        if (this.mana != null && this.mana > max) this.mana = max;
+    }
+
+    public void setSpellSlots(Integer spellSlots) {
+        int s = spellSlots;
+        int max = this.maxSpellSlots == null ? 0 : this.maxSpellSlots;
+        this.spellSlots = Math.max(0, Math.min(s, Math.max(0, max)));
+    }
+
+    public void setMaxSpellSlots(Integer maxSpellSlots) {
+        int max = Math.max(0, maxSpellSlots);
+        this.maxSpellSlots = max;
+        if (this.spellSlots != null && this.spellSlots > max) this.spellSlots = max;
+    }
 }

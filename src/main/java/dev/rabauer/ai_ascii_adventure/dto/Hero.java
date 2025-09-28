@@ -1,5 +1,6 @@
 package dev.rabauer.ai_ascii_adventure.dto;
 
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
@@ -11,4 +12,8 @@ public class Hero extends AbstractCharacter {
         super(firstName, lastName, race, klass, "hero");
     }
 
+    @Builder
+    public static Hero buildHero(String firstName, String lastName, String race, String klass) {
+        return new Hero(firstName, lastName, race, klass);
+    }
 }
