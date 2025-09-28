@@ -7,7 +7,9 @@ refinements, test coverage, and developer experience. Brief notes added for cont
 
 1. [x] Define clear architecture overview in docs (layers, data flow, responsibilities, and component diagram for UI,
    services, AI agents, DTOs, tools) — docs/architecture.md added
-2. [ ] Introduce module/package boundaries and enforce naming conventions (e.g., api/ui, domain/dto, application/services, infrastructure/ai, tools)
+2. [x] Introduce module/package boundaries and enforce naming conventions (e.g., api/ui, domain/dto,
+   application/services, infrastructure/ai, tools) — boundaries documented via package-info.java files and aligned to
+   existing packages
 3. [x] Centralize configuration via Spring @ConfigurationProperties (models, endpoints, feature toggles) — AiProperties
    present
 4. [ ] Extract AI model and provider selection into strategy/factory pattern (AiModel + resolvers) to decouple ChatView from AiService details
