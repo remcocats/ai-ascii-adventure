@@ -303,7 +303,7 @@ public class ChatView extends SplitLayout implements GameManager {
         UI current = UI.getCurrent();
         cancelInFlight();
         inFlightStory = aiService.generateNewStoryPart(
-                this.chatClient,
+                dev.rabauer.ai_ascii_adventure.ai.AiModel.DEFAULT,
                 character,
                 textPrompt,
                 response ->
@@ -419,7 +419,7 @@ public class ChatView extends SplitLayout implements GameManager {
     private void createAsciiArt(String storyPartAsString) {
         UI current = UI.getCurrent();
         inFlightAscii = aiService.generateAsciiArt(
-                aiService.createChatClient(false, visionChatModel),
+                dev.rabauer.ai_ascii_adventure.ai.AiModel.VISION,
                 PromptConstants.CREATE_ASCII_ART_PROMPT_PROMPT.formatted(storyPartAsString),
                 response -> current.access(() -> txtAsciiArt.setValue(response))
         );

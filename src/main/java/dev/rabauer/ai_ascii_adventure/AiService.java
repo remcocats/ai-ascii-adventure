@@ -1,5 +1,7 @@
 package dev.rabauer.ai_ascii_adventure;
 
+import dev.rabauer.ai_ascii_adventure.ai.AiClientFactory;
+import dev.rabauer.ai_ascii_adventure.ai.AiModel;
 import dev.rabauer.ai_ascii_adventure.ai.RouteClassification;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -38,9 +40,11 @@ public class AiService {
     );
 
     private final ChatModel classificationChatModel;
+    private final AiClientFactory clientFactory;
 
-    public AiService(ChatModel classificationChatModel) {
+    public AiService(ChatModel classificationChatModel, AiClientFactory clientFactory) {
         this.classificationChatModel = classificationChatModel;
+        this.clientFactory = clientFactory;
     }
 
     public ChatClient createChatClient(boolean withMemory, ChatModel chatModel) {
@@ -56,7 +60,6 @@ public class AiService {
         assert character != null;
 
         String selectedRoute = classifyInquiry(character, routes.keySet());
-
         String specializedPrompt = routes.get(selectedRoute);
 
         reactor.core.Disposable d = chatClient
@@ -73,13 +76,21 @@ public class AiService {
     }
 
     /**
+     * Overload using model role instead of passing a ChatClient explicitly.
+     */
+    public reactor.core.Disposable generateNewStoryPart(AiModel model, String character, String textPrompt, OnNextFunction onNext, OnCompleteFunction onComplete, Object... tools) {
+        ChatClient client = clientFactory.getClient(model);
+        return generateNewStoryPart(client, character, textPrompt, onNext, onComplete, tools);
+    }
+
+    /**
      * Analyzes the customer inquiry and determines the most appropriate support route.
      * Uses LLM to understand the context and classify the inquiry type.
      */
     private String classifyInquiry(String inquiry, Iterable<String> availableRoutes) {
         String classificationPrompt = constructPrompt(inquiry, availableRoutes);
 
-        RouteClassification classification = this.createChatClient(false, classificationChatModel)
+        RouteClassification classification = this.clientFactory.getClient(AiModel.CLASSIFICATION)
                 .prompt()
                 .user(classificationPrompt)
                 .call()
@@ -132,6 +143,14 @@ public class AiService {
                 .subscribe();
         activeDisposables.add(d);
         return d;
+    }
+
+    /**
+     * Overload using model role for ASCII art generation.
+     */
+    public reactor.core.Disposable generateAsciiArt(AiModel model, String textPrompt, OnCompleteWithResultFunction onComplete) {
+        ChatClient client = clientFactory.getClient(model);
+        return generateAsciiArt(client, textPrompt, onComplete);
     }
 
 

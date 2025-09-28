@@ -12,7 +12,8 @@ refinements, test coverage, and developer experience. Brief notes added for cont
    existing packages
 3. [x] Centralize configuration via Spring @ConfigurationProperties (models, endpoints, feature toggles) — AiProperties
    present
-4. [ ] Extract AI model and provider selection into strategy/factory pattern (AiModel + resolvers) to decouple ChatView from AiService details
+4. [x] Extract AI model and provider selection into strategy/factory pattern (AiModel + resolvers) to decouple ChatView
+   from AiService details — AiModel enum + AiClientFactory introduced; ChatView and AiService updated
 5. [ ] Establish a domain model for Story lifecycle (Story, StoryPart, Character) with invariants and builders to avoid inconsistent states
 6. [ ] Define an event-driven flow for story generation (start, delta, completed, error) decoupling UI from AI streaming side-effects
 7. [ ] Introduce error handling and user-facing status UI for AI failures and timeouts (retry, cancel, fallback model)
